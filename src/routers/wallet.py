@@ -44,6 +44,8 @@ class WalletAPI:
     def get_wallet(self, wallet_id: int):
         return self.get_or_404(wallet_id)
 
+
+
     @router.post("/", response_model=WalletResponse)
     def create_wallet(self, wallet: WalletCreate):
         db_wallet = models.DBWallet(

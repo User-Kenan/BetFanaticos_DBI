@@ -49,6 +49,7 @@ class StatisticsAPI:
     def get_statistics(self, statistics_id: int):
         return self.get_or_404(statistics_id)
 
+
     @router.post("/", response_model=StatisticsResponse)
     def create_statistics(self, statistics: StatisticsCreate):
         db_statistics = models.DBStatistics(

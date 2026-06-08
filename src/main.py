@@ -1,18 +1,19 @@
 import uvicorn
 from fastapi import FastAPI
-
-from BetFanaticos_DBI.src.database import engine
+from src.routers.match import router as match_router
+from src.database import engine
 # from Hü import tables
 #from BetFanaticos_DBI.src.routers.... import router
+from src import models
 
-tables.Base.metadata.create_all(bind=engine)
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Tierheim API",
     version="1.0.0"
 )
 
-app.include_router(router)
+app.include_router(match_router)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@ from src.database import get_db
 
 router = APIRouter(prefix="/match", tags=["Match"])
 
+API_KEY = "cc9941e4e76441ad860b0b38da3fb426"
+
 
 class MatchCreate(BaseModel):
     away_team: str
@@ -39,6 +41,34 @@ class MatchAPI:
             raise HTTPException(status_code=404, detail="Match nicht gefunden")
 
         return match
+
+    @router.get("/football-api")
+    def get_football_api_matches(self):
+        headers = {
+            "X-Auth-Token": API_KEY
+        }
+
+        response = requests.get(
+            "https://api.football-data.org/v4/competitions/PL/matches",
+            headers=headers
+        )
+
+        data = response.json()
+
+        matches = []
+
+        for match in data["matches"]:
+            matches.append({
+                "homeTeam": match["homeTeam"]["name"],
+                "awayTeam": match["awayTeam"]["name"],
+                "league": "Premier League",
+                "sportType": "Football",
+                "matchDate": match["utcDate"],
+                "homeScore": match["score"]["fullTime"]["home"] or 0,
+                "awayScore": match["score"]["fullTime"]["away"] or 0
+            })
+
+        return matches[:30]
 
     @router.get("/", response_model=list[MatchResponse])
     def get_all_matches(self):
