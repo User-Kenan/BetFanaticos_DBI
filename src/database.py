@@ -5,7 +5,7 @@ SQL_URL = "sqlite:///./test.db"
 
 engine = create_engine(SQL_URL,connect_args ={"check_same_thread":False})
 
-SessionLocal = sessionmaker(autoflush=False,autocommit = False)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 Base = declarative_base()
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi_restful.cbv import cbv
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import requests
 
 from src import models
 from src.database import get_db
