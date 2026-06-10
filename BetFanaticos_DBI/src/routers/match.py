@@ -9,7 +9,7 @@ from BetFanaticos_DBI.src.database import get_db
 
 router = APIRouter(prefix="/match", tags=["Match"])
 
-API_KEY = "cc9941e4e76441ad860b0b38da3fb426"
+API_KEY_Football = "cc9941e4e76441ad860b0b38da3fb426"
 
 
 class MatchCreate(BaseModel):
@@ -46,7 +46,7 @@ class MatchAPI:
     @router.get("/football-api")
     def get_football_api_matches(self):
         headers = {
-            "X-Auth-Token": API_KEY
+            "X-Auth-Token": API_KEY_Football
         }
 
         response = requests.get(
