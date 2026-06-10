@@ -71,6 +71,31 @@ class MatchAPI:
 
         return matches[:30]
 
+    @router.get("/basketball-api")
+    def get_basketball_api_matches(self):
+        response = requests.get(
+            "https://www.thesportsdb.com/api/v1/json/123/eventsseason.php?id=4387&s=2026-2027"
+        )
+
+        data = response.json()
+        matches = []
+
+        if data["events"] is None:
+            return matches
+
+        for match in data["events"]:
+            matches.append({
+                "homeTeam": match["strHomeTeam"],
+                "awayTeam": match["strAwayTeam"],
+                "league": "NBA",
+                "sportType": "Basketball",
+                "matchDate": match["dateEvent"] + "T" + (match["strTime"] or "00:00:00"),
+                "homeScore": int(match["intHomeScore"] or 0),
+                "awayScore": int(match["intAwayScore"] or 0)
+            })
+
+        return matches[:30]
+
     @router.get("/", response_model=list[MatchResponse])
     def get_all_matches(self):
         return self.db.query(models.DBMatch).all()
