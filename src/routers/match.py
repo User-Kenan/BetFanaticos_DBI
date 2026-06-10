@@ -4,8 +4,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import requests
 
-from src import models
-from src.database import get_db
+from BetFanaticos_DBI.src import models
+from BetFanaticos_DBI.src.database import get_db
 
 router = APIRouter(prefix="/match", tags=["Match"])
 

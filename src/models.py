@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Double, ForeignKey
-from src.database import Base
+from BetFanaticos_DBI.src.database import Base
 
 
 class DBUser(Base):

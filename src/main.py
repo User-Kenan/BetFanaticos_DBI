@@ -1,10 +1,10 @@
 import uvicorn
 from fastapi import FastAPI
-from src.routers.match import router as match_router
-from src.database import engine
+from BetFanaticos_DBI.src.routers.match import router as match_router
+from BetFanaticos_DBI.src.database import engine
 # from Hü import tables
 #from BetFanaticos_DBI.src.routers.... import router
-from src import models
+from BetFanaticos_DBI.src import models
 
 models.Base.metadata.create_all(bind=engine)
 

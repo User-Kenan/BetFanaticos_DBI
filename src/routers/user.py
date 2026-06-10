@@ -1,10 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
+from dbm import error
+from http.client import HTTPException
+from os import name
+
+from fastapi import APIRouter
+from fastapi.params import Depends
 from fastapi_restful.cbv import cbv
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import query
+from starlette.middleware.sessions import Session
 
-from src import models
-from src.database import get_db
+from BetFanaticos_DBI.src import models
+from BetFanaticos_DBI.src.database import get_db
 
 router = APIRouter(prefix="/user", tags=["User"])
 
@@ -32,6 +38,7 @@ class UserAPI:
 
         return user
 
+
     @router.get("/", response_model=list[UserResponse])
     def get_all_users(self):
         return self.db.query(models.DBUser).all()
@@ -39,7 +46,7 @@ class UserAPI:
     @router.get("/{user_id}", response_model=UserResponse)
     def get_user(self, user_id: int):
         return self.get_or_404(user_id)
-
+        # Todo
 
     @router.post("/", response_model=UserResponse)
     def create_user(self, user: UserCreate):

@@ -3,8 +3,8 @@ from fastapi_restful.cbv import cbv
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src import models
-from src.database import get_db
+from BetFanaticos_DBI.src import models
+from BetFanaticos_DBI.src.database import get_db
 
 router = APIRouter(prefix="/bet", tags=["Bet"])
 
