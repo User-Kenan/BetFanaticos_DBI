@@ -74,7 +74,7 @@ class MatchAPI:
     @router.get("/basketball-api")
     def get_basketball_api_matches(self):
         response = requests.get(
-            "https://www.thesportsdb.com/api/v1/json/123/eventsseason.php?id=4387&s=2026-2027"
+            "https://www.thesportsdb.com/api/v1/json/123/eventsnextleague.php?id=4387"
         )
 
         data = response.json()
