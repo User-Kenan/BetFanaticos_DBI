@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Double, ForeignKey
+from sqlalchemy import Column, Integer, String, Double, ForeignKey, Boolean
 from BetFanaticos_DBI.src.database import Base
 
 
@@ -86,6 +86,12 @@ class DBSidequest(Base):
 
     side_quest_id = Column(Integer, primary_key=True, index=True)
     challange = Column(String, index=True)
+    description = Column(String)
+
+    required_amount = Column(Integer)
+    current_state = Column(Integer, default=0)
+    completed = Column(Boolean, default=False)
+
     start_date = Column(String, index=True)
     end_date = Column(String, index=True)
     earned_coins = Column(Integer)

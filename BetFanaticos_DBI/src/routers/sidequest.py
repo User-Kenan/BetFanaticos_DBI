@@ -11,6 +11,8 @@ router = APIRouter(prefix="/sidequest", tags=["Sidequest"])
 
 class SidequestCreate(BaseModel):
     challange: str
+    description: str
+    required_amount: int
     start_date: str
     end_date: str
     earned_coins: int
@@ -18,6 +20,8 @@ class SidequestCreate(BaseModel):
 
 class SidequestResponse(SidequestCreate):
     side_quest_id: int
+    current_state: int
+    completed: bool
 
     class Config:
         from_attributes = True
@@ -50,6 +54,10 @@ class SidequestAPI:
     def create_sidequest(self, sidequest: SidequestCreate):
         db_sidequest = models.DBSidequest(
             challange=sidequest.challange,
+            description=sidequest.description,
+            required_amount=sidequest.required_amount,
+            current_state=0,
+            completed=False,
             start_date=sidequest.start_date,
             end_date=sidequest.end_date,
             earned_coins=sidequest.earned_coins
@@ -69,6 +77,23 @@ class SidequestAPI:
         db_sidequest.start_date = sidequest.start_date
         db_sidequest.end_date = sidequest.end_date
         db_sidequest.earned_coins = sidequest.earned_coins
+
+        self.db.commit()
+        self.db.refresh(db_sidequest)
+
+        return db_sidequest
+
+    @router.put("/{side_quest_id}/progress", response_model=SidequestResponse)
+    def update_progress(self, side_quest_id: int, amount: int):
+        db_sidequest = self.get_or_404(side_quest_id)
+
+        if db_sidequest.completed:
+            return db_sidequest
+
+        db_sidequest.current_state += amount
+
+        if db_sidequest.current_state >= db_sidequest.required_amount:
+            db_sidequest.completed = True
 
         self.db.commit()
         self.db.refresh(db_sidequest)
