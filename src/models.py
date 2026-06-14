@@ -6,8 +6,10 @@ class DBUser(Base):
     __tablename__ = "users"
 
     userId = Column(Integer, primary_key=True, index=True)
-    name = Column(String(20), nullable=False, index=True)
-    password = Column(String(8), nullable=False)
+    name = Column(String, nullable=False, index=True,unique=True)
+    password = Column(String, nullable=False)
+    role = Column(String, default="user")
+    api_key = Column(String, unique=True, nullable=True)
 
 
 class DBStatistics(Base):
