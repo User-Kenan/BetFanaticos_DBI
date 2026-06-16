@@ -1,0 +1,11 @@
+from BetFanaticos_DBI.src.database import Base
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+
+class BaseAPI:
+    def get_or_404(self, db: Session, model:Base, item_id:int):
+        item = db.query(model).filter(model.id == item_id).first()
+        if not item:
+            raise HTTPException(status_code=404,detail=f"Eintrag in '{model.__tablename__}' mit ID '{item_id}' nicht gefunden")
+        return item
