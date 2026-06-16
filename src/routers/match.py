@@ -1,13 +1,16 @@
-import requests
-from BetFanaticos_DBI.src import models
-from BetFanaticos_DBI.src.database import get_db
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_restful.cbv import cbv
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import requests
+from datetime import datetime
+
+from BetFanaticos_DBI.src import models
+from BetFanaticos_DBI.src.database import get_db
 
 router = APIRouter(prefix="/match", tags=["Match"])
 
+# API Key vom Fussball
 API_KEY = "cc9941e4e76441ad860b0b38da3fb426"
 
 
@@ -48,20 +51,41 @@ class MatchAPI:
             "X-Auth-Token": API_KEY
         }
 
-        response = requests.get(
-            "https://api.football-data.org/v4/competitions/PL/matches",
-            headers=headers
-        )
+        try:
+            response = requests.get(
+                "https://api.football-data.org/v4/competitions/WC/matches",
+                headers=headers,
+                timeout=10
+            )
+        except requests.exceptions.RequestException as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Football API nicht erreichbar: {str(e)}"
+            )
 
         data = response.json()
 
+        if "matches" not in data:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=data
+            )
+
+        now = datetime.utcnow()
         matches = []
 
         for match in data["matches"]:
+            match_date = datetime.fromisoformat(
+                match["utcDate"].replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+
+            if match_date < now:
+                continue
+
             matches.append({
                 "homeTeam": match["homeTeam"]["name"],
                 "awayTeam": match["awayTeam"]["name"],
-                "league": "Premier League",
+                "league": "World Cup",
                 "sportType": "Football",
                 "matchDate": match["utcDate"],
                 "homeScore": match["score"]["fullTime"]["home"] or 0,
@@ -73,7 +97,7 @@ class MatchAPI:
     @router.get("/basketball-api")
     def get_basketball_api_matches(self):
         response = requests.get(
-            "https://www.thesportsdb.com/api/v1/json/123/eventsnextleague.php?id=4387"
+            "https://www.thesportsdb.com/api/v1/json/123/eventsnextleague.php?id=4516"
         )
 
         data = response.json()
@@ -94,6 +118,32 @@ class MatchAPI:
             })
 
         return matches[:30]
+
+    @router.get("/baseball-api")
+    def get_baseball_api_matches(self):
+        response = requests.get(
+            "https://www.thesportsdb.com/api/v1/json/123/eventsnextleague.php?id=4424"
+        )
+
+        data = response.json()
+        matches = []
+
+        if data["events"] is None:
+            return matches
+
+        for match in data["events"]:
+            matches.append({
+                "homeTeam": match["strHomeTeam"],
+                "awayTeam": match["strAwayTeam"],
+                "league": "MLB",
+                "sportType": "Baseball",
+                "matchDate": match["dateEvent"] + "T" + (match["strTime"] or "00:00:00"),
+                "homeScore": int(match["intHomeScore"] or 0),
+                "awayScore": int(match["intAwayScore"] or 0)
+            })
+
+        return matches[:30]
+
 
     @router.get("/", response_model=list[MatchResponse])
     def get_all_matches(self):
@@ -144,3 +194,4 @@ class MatchAPI:
         self.db.commit()
 
         return {"message": "Match gelöscht"}
+
