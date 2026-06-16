@@ -2,7 +2,7 @@ from passlib.context import CryptContext
 from fastapi import HTTPException
 from fastapi import APIRouter, Depends
 from fastapi_restful.cbv import cbv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 import secrets
 
@@ -29,8 +29,27 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 class UserCreate(BaseModel):
-    name: str = Field(max_length=20)
-    password: str = Field(min_length=3,max_length=8)
+    name: str
+    password : str
+
+    @field_validator("name")
+    @classmethod
+    def check_name_length(cls, value: str):
+        if not value.strip():
+            raise ValueError("Bitte geben Sie einen Namen ein.")
+        if len(value) > 20:
+            raise ValueError("Name darf maximal 20 Zeichen haben.")
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def check_password_length(cls, value: str):
+        if not value.strip():
+            raise ValueError("Bitte geben Sie ein Passwort ein.")
+        if len(value) < 3 or len(value) > 8:
+            raise ValueError("Passwort muss zwischen 3 und 8 Zeichen lang sein.")
+        return value
+
 
 class UserResponse(BaseModel):
     userId: int
@@ -38,7 +57,8 @@ class UserResponse(BaseModel):
 
 class LoginRequest(BaseModel):
     name: str
-    password: str
+    password : str
+
     class Config:
         from_attributes = True
 
@@ -93,4 +113,3 @@ class UserAPI:
                 "name": user.name,
                 "role": user.role }
         }
-

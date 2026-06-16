@@ -12,6 +12,8 @@ from BetFanaticos_DBI.src.database import get_db
 
 router = APIRouter(prefix="/admin", tags=["Adm"])
 
+class AdminUpdate(UserCreate):
+    role: str
 
 
 @cbv(router)
@@ -21,7 +23,7 @@ class UserAPI:
 
     def get_or_404(self, user_id: int):
         user = self.db.query(models.DBUser).filter(
-            models.DBUser.id == user_id
+            models.DBUser.userId == user_id
         ).first()
 
         if user is None:
@@ -45,11 +47,11 @@ class UserAPI:
         self.db.commit()
         return {"message": "Eintrag gelöscht"}
 
-    @router.put("/users/{user_id}", response_model=UserResponse,)
+    @router.put("/users/{user_id}", response_model=UserResponse)
     def update_user(
             self,
             user_id: int,
-            u_user: UserCreate,
+            u_user: AdminUpdate,
             admin: DBUser = Depends(require_admin)
     ):
 
