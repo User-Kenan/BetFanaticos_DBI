@@ -1,5 +1,6 @@
 from BetFanaticos_DBI.src.database import Base
-from sqlalchemy import Column, Integer, String, Double, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Double, ForeignKey, Boolean, DateTime
+from datetime import datetime
 
 
 class DBUser(Base):
@@ -83,17 +84,25 @@ class DBJunctionTable(Base):
     )
 
 
-class DBSidequest(Base):
+class DBChallenge(Base):
     __tablename__ = "sidequests"
 
-    side_quest_id = Column(Integer, primary_key=True, index=True)
-    challange = Column(String, index=True)
+    id = Column(Integer, primary_key=True)
+    type = Column(String, index=True)
     description = Column(String)
 
     required_amount = Column(Integer)
+    reward = Column(Integer)
+
+
+
+class DBUserChallenge(Base):
+    __tablename__ = "user_challenges"
+
+    id = Column(Integer, primary_key=True)
+
+    user_id = Column(Integer, index=True)
+    challenge_id = Column(Integer, ForeignKey("sidequests.id"))
+
     current_state = Column(Integer, default=0)
     completed = Column(Boolean, default=False)
-
-    start_date = Column(String, index=True)
-    end_date = Column(String, index=True)
-    earned_coins = Column(Integer)

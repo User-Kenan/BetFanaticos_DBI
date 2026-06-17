@@ -1,5 +1,5 @@
 import uvicorn
-from BetFanaticos_DBI.src import models
+import BetFanaticos_DBI.src.models as models
 from BetFanaticos_DBI.src.database import engine
 from BetFanaticos_DBI.src.routers.admin import router as admin
 from BetFanaticos_DBI.src.routers.auth import router as auth
@@ -13,7 +13,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
+from pathlib import Path
 
+print("Aktueller Ordner:", Path.cwd())
+print("DB:", Path("betfanaticos.db").resolve())
 
 
 app.include_router(match_router)
