@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 import requests
 from datetime import datetime
 
-from BetFanaticos_DBI.src import models
-from BetFanaticos_DBI.src.database import get_db
+import models
+from database import get_db
 
 router = APIRouter(prefix="/match", tags=["Match"])
 

@@ -1,5 +1,6 @@
-from BetFanaticos_DBI.temp import models
-from BetFanaticos_DBI.temp.database import get_db
+import models
+from database import get_db
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_restful.cbv import cbv
 from pydantic import BaseModel

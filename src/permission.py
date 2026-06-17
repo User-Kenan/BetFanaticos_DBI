@@ -1,11 +1,10 @@
-from BetFanaticos_DBI.src.authKey import api_key_header
-from BetFanaticos_DBI.src.database import get_db
-from BetFanaticos_DBI.src.models import DBUser
-from dotenv import load_dotenv
+from authKey import api_key_header
+from database import get_db
+from models import DBUser
+
 from fastapi import Depends, HTTPException, Security
 from sqlalchemy.orm import Session
 
-load_dotenv()
 
 
 # KI

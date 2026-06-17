@@ -1,10 +1,14 @@
 import uvicorn
-from BetFanaticos_DBI.src import models
-from BetFanaticos_DBI.src.database import engine
-from BetFanaticos_DBI.src.routers.admin import router as admin
-from BetFanaticos_DBI.src.routers.auth import router as auth
-from BetFanaticos_DBI.src.routers.match import router as match_router
+
+import models
+from database import engine
 from fastapi import FastAPI
+from routers import wallet
+
+from routers import sidequest
+from routers.admin import router as admin
+from routers.auth import router as auth
+from routers.match import router as match_router
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -19,6 +23,7 @@ app = FastAPI(
 app.include_router(match_router)
 app.include_router(admin)
 app.include_router(auth)
+app.include_router(wallet.router)
 
 
 

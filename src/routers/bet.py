@@ -1,9 +1,11 @@
-from BetFanaticos_DBI.src import models
-from BetFanaticos_DBI.src.database import get_db
+import models
+from database import get_db
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_restful.cbv import cbv
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
 
 router = APIRouter(prefix="/bet", tags=["Bet"])
 
