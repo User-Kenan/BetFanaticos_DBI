@@ -10,7 +10,6 @@ from database import get_db
 
 router = APIRouter(prefix="/match", tags=["Match"])
 
-# API Key vom Fussball
 API_KEY = "cc9941e4e76441ad860b0b38da3fb426"
 
 
@@ -35,6 +34,62 @@ class MatchAPI:
 
     db: Session = Depends(get_db)
 
+    def calculate_strength(self, team_data):
+        points = team_data.get("points", 0)
+        won = team_data.get("won", 0)
+        goal_difference = team_data.get("goalDifference", 0)
+
+        strength = points + won * 3 + goal_difference
+
+        if strength <= 0:
+            strength = 1
+
+        return strength
+
+    def calculate_odds(self, home_strength, away_strength):
+        total = home_strength + away_strength
+
+        home_probability = home_strength / total
+        away_probability = away_strength / total
+
+        home_odds = round(1 / home_probability, 2)
+        away_odds = round(1 / away_probability, 2)
+
+        if home_odds < 1.1:
+            home_odds = 1.1
+
+        if away_odds < 1.1:
+            away_odds = 1.1
+
+        draw_odds = 3.2
+
+        return home_odds, draw_odds, away_odds
+
+    def get_team_strengths(self, competition_code, headers):
+        strengths = {}
+
+        try:
+            response = requests.get(
+                f"https://api.football-data.org/v4/competitions/{competition_code}/standings",
+                headers=headers,
+                timeout=10
+            )
+
+            data = response.json()
+
+            if "standings" not in data:
+                return strengths
+
+            for standing in data["standings"]:
+                for team in standing.get("table", []):
+                    team_name = team["team"]["name"]
+                    strengths[team_name] = self.calculate_strength(team)
+
+        except requests.exceptions.RequestException:
+            return strengths
+
+        return strengths
+
     def get_or_404(self, match_id: int):
         match = self.db.query(models.DBMatch).filter(
             models.DBMatch.match_id == match_id
@@ -51,9 +106,11 @@ class MatchAPI:
             "X-Auth-Token": API_KEY
         }
 
+        competition_code = "WC"
+
         try:
             response = requests.get(
-                "https://api.football-data.org/v4/competitions/WC/matches",
+                f"https://api.football-data.org/v4/competitions/{competition_code}/matches",
                 headers=headers,
                 timeout=10
             )
@@ -71,6 +128,8 @@ class MatchAPI:
                 detail=data
             )
 
+        team_strengths = self.get_team_strengths(competition_code, headers)
+
         now = datetime.utcnow()
         matches = []
 
@@ -82,14 +141,28 @@ class MatchAPI:
             if match_date < now:
                 continue
 
+            home_team = match["homeTeam"]["name"]
+            away_team = match["awayTeam"]["name"]
+
+            home_strength = team_strengths.get(home_team, 50)
+            away_strength = team_strengths.get(away_team, 50)
+
+            home_odds, draw_odds, away_odds = self.calculate_odds(
+                home_strength,
+                away_strength
+            )
+
             matches.append({
-                "homeTeam": match["homeTeam"]["name"],
-                "awayTeam": match["awayTeam"]["name"],
+                "homeTeam": home_team,
+                "awayTeam": away_team,
                 "league": "World Cup",
                 "sportType": "Football",
                 "matchDate": match["utcDate"],
                 "homeScore": match["score"]["fullTime"]["home"] or 0,
-                "awayScore": match["score"]["fullTime"]["away"] or 0
+                "awayScore": match["score"]["fullTime"]["away"] or 0,
+                "homeOdds": home_odds,
+                "drawOdds": draw_odds,
+                "awayOdds": away_odds
             })
 
         return matches[:30]
@@ -114,7 +187,10 @@ class MatchAPI:
                 "sportType": "Basketball",
                 "matchDate": match["dateEvent"] + "T" + (match["strTime"] or "00:00:00"),
                 "homeScore": int(match["intHomeScore"] or 0),
-                "awayScore": int(match["intAwayScore"] or 0)
+                "awayScore": int(match["intAwayScore"] or 0),
+                "homeOdds": 1.9,
+                "drawOdds": 3.2,
+                "awayOdds": 1.9
             })
 
         return matches[:30]
@@ -139,11 +215,13 @@ class MatchAPI:
                 "sportType": "Baseball",
                 "matchDate": match["dateEvent"] + "T" + (match["strTime"] or "00:00:00"),
                 "homeScore": int(match["intHomeScore"] or 0),
-                "awayScore": int(match["intAwayScore"] or 0)
+                "awayScore": int(match["intAwayScore"] or 0),
+                "homeOdds": 1.9,
+                "drawOdds": 3.2,
+                "awayOdds": 1.9
             })
 
         return matches[:30]
-
 
     @router.get("/", response_model=list[MatchResponse])
     def get_all_matches(self):
@@ -194,4 +272,3 @@ class MatchAPI:
         self.db.commit()
 
         return {"message": "Match gelöscht"}
-
