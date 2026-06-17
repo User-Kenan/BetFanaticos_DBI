@@ -1,5 +1,6 @@
-from BetFanaticos_DBI.src import models
-from BetFanaticos_DBI.src.database import get_db
+import models
+from database import get_db
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_restful.cbv import cbv
 from pydantic import BaseModel
@@ -35,6 +36,44 @@ class WalletAPI:
 
         return wallet
 
+    @router.get("/user/{user_id}", response_model=WalletResponse)
+    def get_wallet_by_user_id(self, user_id: int):
+        wallet = self.db.query(models.DBWallet).filter(
+            models.DBWallet.user_id == user_id
+        ).first()
+
+        if wallet is None:
+            wallet = models.DBWallet(
+                user_id=user_id,
+                coins=1000
+            )
+
+            self.db.add(wallet)
+            self.db.commit()
+            self.db.refresh(wallet)
+
+        return wallet
+
+    @router.put("/user/{user_id}", response_model=WalletResponse)
+    def update_wallet_by_user_id(self, user_id: int, wallet_data: WalletCreate):
+        wallet = self.db.query(models.DBWallet).filter(
+            models.DBWallet.user_id == user_id
+        ).first()
+
+        if wallet is None:
+            wallet = models.DBWallet(
+                user_id=user_id,
+                coins=wallet_data.coins
+            )
+            self.db.add(wallet)
+        else:
+            wallet.coins = wallet_data.coins
+
+        self.db.commit()
+        self.db.refresh(wallet)
+
+        return wallet
+
     @router.get("/", response_model=list[WalletResponse])
     def get_all_wallets(self):
         return self.db.query(models.DBWallet).all()
@@ -42,7 +81,6 @@ class WalletAPI:
     @router.get("/{wallet_id}", response_model=WalletResponse)
     def get_wallet(self, wallet_id: int):
         return self.get_or_404(wallet_id)
-
 
 
     @router.post("/", response_model=WalletResponse)

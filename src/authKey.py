@@ -3,8 +3,8 @@ from fastapi import Security, HTTPException
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
-import BetFanaticos_DBI.src.models as models
-from BetFanaticos_DBI.src.database import get_db
+import models
+from database import get_db
 
 # gibt an ,das im HTTP-Header nach einem feld mit diesem Namen gesucht wird
 api_key_header = APIKeyHeader(name="X-API-Key")

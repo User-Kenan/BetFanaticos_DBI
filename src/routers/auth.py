@@ -1,8 +1,9 @@
 import secrets
 
-from BetFanaticos_DBI.src import models
-from BetFanaticos_DBI.src.authKey import verify_api_key
-from BetFanaticos_DBI.src.database import get_db
+import models
+from authKey import verify_api_key
+from database import get_db
+
 from fastapi import APIRouter, Depends
 from fastapi import HTTPException
 from fastapi_restful.cbv import cbv
