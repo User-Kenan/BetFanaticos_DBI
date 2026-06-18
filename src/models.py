@@ -1,4 +1,4 @@
-from BetFanaticos_DBI.src.database import Base
+from database import Base
 from sqlalchemy import Column, Integer, String, Double, ForeignKey, Boolean, DateTime
 from datetime import datetime
 
@@ -46,14 +46,22 @@ class DBBetitem(Base):
     __tablename__ = "betitem"
 
     bet_item_id = Column(Integer, primary_key=True, index=True)
-    score_team_a = Column(Integer, index=True)
-    score_team_b = Column(Integer, index=True)
+
     bet_money = Column(Double)
     status = Column(String)
     bet_type = Column(String)
 
+    prediction = Column(String)
+    odds = Column(Double)
+
+    home_team = Column(String)
+    away_team = Column(String)
+
+    score_team_a = Column(Integer, index=True)
+    score_team_b = Column(Integer, index=True)
+
     bet_id = Column(Integer, ForeignKey("bets.bet_id"))
-    match_id = Column(Integer, ForeignKey("matches.match_id"))
+    match_id = Column(Integer)
 
 
 class DBMatch(Base):
@@ -73,7 +81,7 @@ class DBJunctionTable(Base):
 
     side_quest_id = Column(
         Integer,
-        ForeignKey("sidequests.side_quest_id"),
+        ForeignKey("sidequests.id"),
         primary_key=True
     )
 

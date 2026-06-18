@@ -34,6 +34,13 @@ class MatchAPI:
 
     db: Session = Depends(get_db)
 
+    def convert_status(self, api_status):
+        if api_status == "FINISHED":
+            return "Finished"
+        if api_status in ["LIVE", "IN_PLAY", "PAUSED"]:
+            return "Live"
+        return "Upcoming"
+
     def calculate_strength(self, team_data):
         points = team_data.get("points", 0)
         won = team_data.get("won", 0)
@@ -153,6 +160,7 @@ class MatchAPI:
             )
 
             matches.append({
+                "id": match["id"],
                 "homeTeam": home_team,
                 "awayTeam": away_team,
                 "league": "World Cup",
@@ -162,7 +170,8 @@ class MatchAPI:
                 "awayScore": match["score"]["fullTime"]["away"] or 0,
                 "homeOdds": home_odds,
                 "drawOdds": draw_odds,
-                "awayOdds": away_odds
+                "awayOdds": away_odds,
+                "status": self.convert_status(match["status"])
             })
 
         return matches[:30]
@@ -181,6 +190,7 @@ class MatchAPI:
 
         for match in data["events"]:
             matches.append({
+                "id": int(match["idEvent"]),
                 "homeTeam": match["strHomeTeam"],
                 "awayTeam": match["strAwayTeam"],
                 "league": "NBA",
@@ -190,7 +200,8 @@ class MatchAPI:
                 "awayScore": int(match["intAwayScore"] or 0),
                 "homeOdds": 1.9,
                 "drawOdds": 3.2,
-                "awayOdds": 1.9
+                "awayOdds": 1.9,
+                "status": "Upcoming"
             })
 
         return matches[:30]
@@ -209,6 +220,7 @@ class MatchAPI:
 
         for match in data["events"]:
             matches.append({
+                "id": int(match["idEvent"]),
                 "homeTeam": match["strHomeTeam"],
                 "awayTeam": match["strAwayTeam"],
                 "league": "MLB",
@@ -218,7 +230,8 @@ class MatchAPI:
                 "awayScore": int(match["intAwayScore"] or 0),
                 "homeOdds": 1.9,
                 "drawOdds": 3.2,
-                "awayOdds": 1.9
+                "awayOdds": 1.9,
+                "status": "Upcoming"
             })
 
         return matches[:30]

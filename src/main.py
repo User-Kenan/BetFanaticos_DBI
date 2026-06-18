@@ -4,11 +4,14 @@ import models
 from database import engine
 from fastapi import FastAPI
 from routers import wallet
+from routers import betitem
+
 
 from routers import sidequest
 from routers.admin import router as admin
 from routers.auth import router as auth
 from routers.match import router as match_router
+from routers import bet
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -24,6 +27,8 @@ app.include_router(match_router)
 app.include_router(admin)
 app.include_router(auth)
 app.include_router(wallet.router)
+app.include_router(betitem.router)
+app.include_router(bet.router)
 
 
 
