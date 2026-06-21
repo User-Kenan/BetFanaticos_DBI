@@ -1,6 +1,6 @@
-import models
-from database import get_db
-from routers.auth import UserResponse
+import BetFanaticos_DBI.src.models as models
+from BetFanaticos_DBI.src.database import get_db
+from BetFanaticos_DBI.src.routers.auth import UserResponse
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_restful.cbv import cbv
 from sqlalchemy.orm import Session

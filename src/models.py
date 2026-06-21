@@ -33,6 +33,17 @@ class DBWallet(Base):
     user_id = Column(Integer, ForeignKey("users.userId"))
     coins = Column(Double)
 
+class DBUserChallenge(Base):
+    __tablename__ = "user_challenges"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(Integer, ForeignKey("users.userId"))
+    challenge_id = Column(Integer, ForeignKey("sidequests.id"))
+
+    current_state = Column(Integer, default=0)
+    completed = Column(Boolean, default=False)
+    reward_claimed = Column(Boolean, default=False)
 
 class DBBet(Base):
     __tablename__ = "bets"
@@ -73,7 +84,7 @@ class DBJunctionTable(Base):
 
     side_quest_id = Column(
         Integer,
-        ForeignKey("sidequests.side_quest_id"),
+        ForeignKey("sidequests.id"),
         primary_key=True
     )
 
@@ -87,7 +98,7 @@ class DBJunctionTable(Base):
 class DBChallenge(Base):
     __tablename__ = "sidequests"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
     type = Column(String, index=True)
     description = Column(String)
 
@@ -96,13 +107,6 @@ class DBChallenge(Base):
 
 
 
-class DBUserChallenge(Base):
-    __tablename__ = "user_challenges"
 
-    id = Column(Integer, primary_key=True)
 
-    user_id = Column(Integer, index=True)
-    challenge_id = Column(Integer, ForeignKey("sidequests.id"))
 
-    current_state = Column(Integer, default=0)
-    completed = Column(Boolean, default=False)

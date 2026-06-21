@@ -1,5 +1,5 @@
-from database import Base
 
+from BetFanaticos_DBI.src.database import Base
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 

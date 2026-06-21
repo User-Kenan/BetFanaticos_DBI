@@ -1,110 +1,153 @@
-import models
-from database import get_db
-
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi_restful.cbv import cbv
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from BetFanaticos_DBI.src.database import get_db
+from BetFanaticos_DBI.src import models
 
-router = APIRouter(prefix="/sidequest", tags=["Sidequest"])
-
-
-class SidequestCreate(BaseModel):
-    challange: str
-    description: str
-    required_amount: int
-    start_date: str
-    end_date: str
-    earned_coins: int
+router = APIRouter(prefix="/challenges", tags=["Challenges"])
 
 
-class SidequestResponse(SidequestCreate):
-    side_quest_id: int
-    current_state: int
-    completed: bool
+@router.post("/seed")
+def seed_challenges(db: Session = Depends(get_db)):
+    challenges = [
+        models.DBChallenge(
+            id=1,
+            type="DailyLogin",
+            description="Logge dich einmal ein",
+            required_amount=1,
+            reward=25
+        ),
+        models.DBChallenge(
+            id=2,
+            type="PlacePrediction",
+            description="Gib 3 Predictions ab",
+            required_amount=3,
+            reward=100
+        ),
+        models.DBChallenge(
+            id=3,
+            type="CorrectPrediction",
+            description="Treffe 1 richtige Prediction",
+            required_amount=1,
+            reward=50
+        )
+    ]
 
-    class Config:
-        from_attributes = True
+    for c in challenges:
+        if not db.query(models.DBChallenge).filter(models.DBChallenge.id == c.id).first():
+            db.add(c)
+
+    db.commit()
+
+    return {"message": "Challenges erstellt"}
 
 
-@cbv(router)
-class SidequestAPI:
+@router.get("/all")
+def get_all_challenges(db: Session = Depends(get_db)):
+    return db.query(models.DBChallenge).all()
 
-    db: Session = Depends(get_db)
 
-    def get_or_404(self, side_quest_id: int):
-        sidequest = self.db.query(models.DBSidequest).filter(
-            models.DBSidequest.side_quest_id == side_quest_id
+@router.get("/user/{user_id}")
+def get_user_challenges(user_id: int, db: Session = Depends(get_db)):
+    challenges = db.query(models.DBChallenge).all()
+
+    result = []
+
+    for challenge in challenges:
+        user_challenge = db.query(models.DBUserChallenge).filter(
+            models.DBUserChallenge.user_id == user_id,
+            models.DBUserChallenge.challenge_id == challenge.id
         ).first()
 
-        if sidequest is None:
-            raise HTTPException(status_code=404, detail="Sidequest nicht gefunden")
+        if user_challenge is None:
+            user_challenge = models.DBUserChallenge(
+                user_id=user_id,
+                challenge_id=challenge.id,
+                current_state=0,
+                completed=False,
+                reward_claimed=False
+            )
+            db.add(user_challenge)
+            db.flush()
 
-        return sidequest
+        result.append({
+            "id": challenge.id,
+            "type": challenge.type,
+            "description": challenge.description,
+            "required_amount": challenge.required_amount,
+            "reward": challenge.reward,
+            "current_state": user_challenge.current_state,
+            "completed": user_challenge.completed,
+            "reward_claimed": user_challenge.reward_claimed
+        })
 
-    @router.get("/", response_model=list[SidequestResponse])
-    def get_all_sidequests(self):
-        return self.db.query(models.DBSidequest).all()
+    db.commit()
 
-    @router.get("/{side_quest_id}", response_model=SidequestResponse)
-    def get_sidequest(self, side_quest_id: int):
-        return self.get_or_404(side_quest_id)
+    return result
 
-    @router.post("/", response_model=SidequestResponse)
-    def create_sidequest(self, sidequest: SidequestCreate):
-        db_sidequest = models.DBSidequest(
-            challange=sidequest.challange,
-            description=sidequest.description,
-            required_amount=sidequest.required_amount,
+
+@router.post("/update")
+def update_challenge(
+    user_id: int,
+    challenge_id: int,
+    amount: int,
+    db: Session = Depends(get_db)
+):
+    challenge = db.query(models.DBChallenge).filter(
+        models.DBChallenge.id == challenge_id
+    ).first()
+
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge nicht gefunden")
+
+    user_challenge = db.query(models.DBUserChallenge).filter(
+        models.DBUserChallenge.user_id == user_id,
+        models.DBUserChallenge.challenge_id == challenge_id
+    ).first()
+
+    if user_challenge is None:
+        user_challenge = models.DBUserChallenge(
+            user_id=user_id,
+            challenge_id=challenge_id,
             current_state=0,
             completed=False,
-            start_date=sidequest.start_date,
-            end_date=sidequest.end_date,
-            earned_coins=sidequest.earned_coins
+            reward_claimed=False
         )
+        db.add(user_challenge)
+        db.flush()
 
-        self.db.add(db_sidequest)
-        self.db.commit()
-        self.db.refresh(db_sidequest)
+    if not user_challenge.completed:
+        user_challenge.current_state += amount
 
-        return db_sidequest
+        if user_challenge.current_state >= challenge.required_amount:
+            user_challenge.current_state = challenge.required_amount
+            user_challenge.completed = True
 
-    @router.put("/{side_quest_id}", response_model=SidequestResponse)
-    def update_sidequest(self, side_quest_id: int, sidequest: SidequestCreate):
-        db_sidequest = self.get_or_404(side_quest_id)
+            if not user_challenge.reward_claimed:
+                wallet = db.query(models.DBWallet).filter(
+                    models.DBWallet.user_id == user_id
+                ).first()
 
-        db_sidequest.challange = sidequest.challange
-        db_sidequest.start_date = sidequest.start_date
-        db_sidequest.end_date = sidequest.end_date
-        db_sidequest.earned_coins = sidequest.earned_coins
+                if wallet is None:
+                    wallet = models.DBWallet(
+                        user_id=user_id,
+                        coins=1000
+                    )
+                    db.add(wallet)
+                    db.flush()
 
-        self.db.commit()
-        self.db.refresh(db_sidequest)
+                wallet.coins += challenge.reward
+                user_challenge.reward_claimed = True
 
-        return db_sidequest
+    db.commit()
+    db.refresh(user_challenge)
 
-    @router.put("/{side_quest_id}/progress", response_model=SidequestResponse)
-    def update_progress(self, side_quest_id: int, amount: int):
-        db_sidequest = self.get_or_404(side_quest_id)
-
-        if db_sidequest.completed:
-            return db_sidequest
-
-        db_sidequest.current_state += amount
-
-        if db_sidequest.current_state >= db_sidequest.required_amount:
-            db_sidequest.completed = True
-
-        self.db.commit()
-        self.db.refresh(db_sidequest)
-
-        return db_sidequest
-
-    @router.delete("/{side_quest_id}")
-    def delete_sidequest(self, side_quest_id: int):
-        db_sidequest = self.get_or_404(side_quest_id)
-
-        self.db.delete(db_sidequest)
-        self.db.commit()
-
-        return {"message": "Sidequest gelöscht"}
+    return {
+        "id": challenge.id,
+        "type": challenge.type,
+        "description": challenge.description,
+        "required_amount": challenge.required_amount,
+        "reward": challenge.reward,
+        "current_state": user_challenge.current_state,
+        "completed": user_challenge.completed,
+        "reward_claimed": user_challenge.reward_claimed
+    }

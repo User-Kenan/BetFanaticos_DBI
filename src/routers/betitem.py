@@ -1,5 +1,5 @@
-import models
-from database import get_db
+import BetFanaticos_DBI.src.models as models
+from BetFanaticos_DBI.src.database import get_db
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_restful.cbv import cbv
@@ -49,7 +49,7 @@ class BetitemAPI:
     def get_betitem(self, bet_item_id: int):
         return self.get_or_404(bet_item_id)
 
-    @router.post("/", response_model=BetitemResponse)
+    @router.post("/create", response_model=BetitemResponse)
     def create_betitem(self, betitem: BetitemCreate):
         db_betitem = models.DBBetitem(
             score_team_a=betitem.score_team_a,

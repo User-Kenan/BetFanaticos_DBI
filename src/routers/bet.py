@@ -1,22 +1,29 @@
-import models
-from database import get_db
+import BetFanaticos_DBI.src.models as models
+from BetFanaticos_DBI.src.database import get_db
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_restful.cbv import cbv
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import Optional
 
 
 router = APIRouter(prefix="/bet", tags=["Bet"])
 
 
 class BetCreate(BaseModel):
+    user_id: int
+    match_id: int
+    amount: float
+    prediction: str
+    odds: float
+
+
+class BetResponse(BaseModel):
+    bet_id: int
     status: str
     user_id: int
-
-
-class BetResponse(BetCreate):
-    bet_id: int
+    bet_item_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -37,38 +44,67 @@ class BetAPI:
 
         return bet
 
-    @router.get("/", response_model=list[BetResponse])
+    @router.get("/")
     def get_all_bets(self):
         return self.db.query(models.DBBet).all()
 
-    @router.get("/{bet_id}", response_model=BetResponse)
+    @router.get("/{bet_id}")
     def get_bet(self, bet_id: int):
         return self.get_or_404(bet_id)
 
-    @router.post("/", response_model=BetResponse)
+    @router.post("/create", response_model=BetResponse)
     def create_bet(self, bet: BetCreate):
+        wallet = self.db.query(models.DBWallet).filter(
+            models.DBWallet.user_id == bet.user_id
+        ).first()
+
+        if wallet is None:
+            wallet = models.DBWallet(
+                user_id=bet.user_id,
+                coins=1000
+            )
+            self.db.add(wallet)
+            self.db.flush()
+
+        if wallet.coins < bet.amount:
+            raise HTTPException(
+                status_code=400,
+                detail="Du hast nicht genug Coins"
+            )
+
+        wallet.coins -= bet.amount
+
         db_bet = models.DBBet(
-            status=bet.status,
+            status="open",
             user_id=bet.user_id
         )
 
         self.db.add(db_bet)
+        self.db.flush()
+
+        db_betitem = models.DBBetitem(
+            score_team_a=0,
+            score_team_b=0,
+            bet_money=bet.amount,
+            status="open",
+            bet_type=bet.prediction,
+            bet_id=db_bet.bet_id,
+            match_id=bet.match_id
+        )
+
+        self.db.add(db_betitem)
+
         self.db.commit()
         self.db.refresh(db_bet)
+        self.db.refresh(db_betitem)
 
-        return db_bet
+        return {
+            "bet_id": db_bet.bet_id,
+            "status": db_bet.status,
+            "user_id": db_bet.user_id,
+            "bet_item_id": db_betitem.bet_item_id
+        }
 
-    @router.put("/{bet_id}", response_model=BetResponse)
-    def update_bet(self, bet_id: int, bet: BetCreate):
-        db_bet = self.get_or_404(bet_id)
-
-        db_bet.status = bet.status
-        db_bet.user_id = bet.user_id
-
-        self.db.commit()
-        self.db.refresh(db_bet)
-
-        return db_bet
 
     @router.delete("/{bet_id}")
     def delete_bet(self, bet_id: int):

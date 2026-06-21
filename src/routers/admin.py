@@ -1,9 +1,8 @@
-import models
-from database import get_db
-from models import DBUser
-from permission import require_admin
-from routers.auth import UserResponse, UserCreate
-from routers.auth import hash_password
+from BetFanaticos_DBI.src.database import get_db
+from BetFanaticos_DBI.src.models import DBUser
+from BetFanaticos_DBI.src.permission import require_admin
+from BetFanaticos_DBI.src.routers.auth import UserResponse, UserCreate
+from BetFanaticos_DBI.src.routers.auth import hash_password
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_restful.cbv import cbv
