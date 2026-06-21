@@ -4,14 +4,18 @@ from BetFanaticos_DBI.src.permission import require_admin
 from BetFanaticos_DBI.src.routers.auth import UserResponse, UserCreate
 from BetFanaticos_DBI.src.routers.auth import hash_password
 
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_restful.cbv import cbv
 from sqlalchemy.orm import Session
-
+import BetFanaticos_DBI.src.models as models
 router = APIRouter(prefix="/admin", tags=["Adm"])
 
 class AdminUpdate(UserCreate):
     role: str
+
+
 
 
 @cbv(router)
@@ -66,11 +70,12 @@ class UserAPI:
 
     @router.post("/users", response_model=UserResponse)
     def create_user(self, user_data: UserCreate, admin: DBUser = Depends(require_admin)):
-
+        api_key = secrets.token_urlsafe(32)
         new_user = DBUser(
             name=user_data.name,
             password=hash_password(user_data.password),
-            role="user"
+            role="user",
+            api_key=api_key
         )
 
         self.db.add(new_user)
@@ -85,7 +90,7 @@ class UserAPI:
     # Prompt: Woher weiß aber programm ob ich Admin bin
 
     @router.post("/admin/users/{user_id}/make-admin")
-    def make_admin(self,user_id: int, admin: DBUser = Depends(require_admin)):
+    def make_admin(self,user_id: int):
 
         user = self.db.query(models.DBUser).filter(models.DBUser.userId == user_id).first()
 
@@ -98,3 +103,4 @@ class UserAPI:
         return {"message": "User ist jetzt Admin"}
 
     #Ki
+    # Zuerst wurde ein Dummy-Admin ohne der Dependency injection erstellt.

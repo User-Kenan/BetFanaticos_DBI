@@ -1,197 +1,364 @@
-from sqlalchemy import select, func, case
+import logging
 
-from BetFanaticos_DBI.src import models
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi_restful.cbv import cbv
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session
+
+import BetFanaticos_DBI.src.models as models
 from BetFanaticos_DBI.src.database import get_db
-from BetFanaticos_DBI.src.models import DBBetitem,DBUser,DBBet
+
+
+logger = logging.getLogger("betfanaticos.statistics")
 
 router = APIRouter(prefix="/statistics", tags=["Statistics"])
 
 
-class StatisticsCreate(BaseModel):
-    user_id: int
-    win_rate: float
-    biggest_win: float
-    biggest_lost: float
-    bet_lost: int
-    bet_won: int
-    profit: float
+class MatchResultCreate(BaseModel):
+    match_id: int
+    score_home: int
+    score_away: int
+
+    @field_validator("match_id")
+    @classmethod
+    def match_id_must_be_positive(cls, value: int):
+        if value <= 0:
+            raise ValueError("match_id muss größer als 0 sein")
+        return value
+
+    @field_validator("score_home", "score_away")
+    @classmethod
+    def score_must_not_be_negative(cls, value: int):
+        if value < 0:
+            raise ValueError("Scores dürfen nicht negativ sein")
+        return value
 
 
-class StatisticsResponse(StatisticsCreate):
-    statisticsID: int
+def normalize_prediction(value: str | None):
+    """
+    Prediction wird auf feste Werte normalisiert:
+    home, away oder draw.
+    Es werden keine Teamnamen mehr verglichen.
+    """
+    if value is None:
+        return None
 
-    class Config:
-        from_attributes = True
+    value = value.lower().strip()
 
+    if value in ["home", "heim", "heimsieg", "1"]:
+        return "home"
 
-@cbv(router)
-class StatisticsAPI:
+    if value in ["away", "auswaerts", "auswärts", "auswaertssieg", "auswärtssieg", "2"]:
+        return "away"
 
-    db: Session = Depends(get_db)
+    if value in ["draw", "x", "unentschieden", "remis"]:
+        return "draw"
 
-    def get_or_404(self, statistics_id: int):
-        statistics = self.db.query(models.DBStatistics).filter(
-            models.DBStatistics.statisticsID == statistics_id
-        ).first()
-
-        if statistics is None:
-            raise HTTPException(status_code=404, detail="Statistik nicht gefunden")
-
-        return statistics
-
-    from fastapi import APIRouter, Depends, HTTPException
-    from sqlalchemy import select, func, case
-    from sqlalchemy.ext.asyncio import AsyncSession
+    return value
 
 
+def get_match_result(score_home: int, score_away: int):
+    if score_home > score_away:
+        return "home"
 
-    router = APIRouter(prefix="/statistics", tags=["Statistics"])
+    if score_away > score_home:
+        return "away"
 
-    @router.get("/{user_id}")
-    async def get_statistics(
-            user_id: int,
-            db: AsyncSession = Depends(get_db)
-    ):
-    #KI
-    #Chatgpt
-    # Prompt
-        stmt = (
-            select(
-                DBUser.user_id,
+    return "draw"
 
-                func.count(func.distinct(DBBet.bet_id)).label("total_bets"),
 
+def get_or_create_statistics(db: Session, user_id: int):
+    statistics = (
+        db.query(models.DBStatistics)
+        .filter(models.DBStatistics.user_id == user_id)
+        .first()
+    )
+
+    if statistics is None:
+        statistics = models.DBStatistics(user_id=user_id)
+        db.add(statistics)
+        db.flush()
+
+        logger.info("Neue Statistics-Zeile für user_id=%s erstellt", user_id)
+
+    return statistics
+
+
+def recalculate_statistics_for_user(db: Session, user_id: int):
+    """
+    Aggregiert alle Wetten eines Users und speichert sie in statistics.
+    """
+
+    user = (
+        db.query(models.DBUser)
+        .filter(models.DBUser.userId == user_id)
+        .first()
+    )
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User nicht gefunden")
+
+    bet_count = (
+        db.query(func.count(models.DBBet.bet_id))
+        .filter(models.DBBet.user_id == user_id)
+        .scalar()
+    ) or 0
+
+    status_lower = func.lower(models.DBBetitem.status)
+
+    result = (
+        db.query(
+            func.coalesce(
                 func.sum(
                     case(
-                        (DBBet.status == "won", 1),
+                        (status_lower.in_(["won", "gewonnen", "richtig"]), 1),
                         else_=0
                     )
-                ).label("bet_won"),
+                ),
+                0
+            ).label("bet_won"),
 
+            func.coalesce(
                 func.sum(
                     case(
-                        (DBBet.status == "lost", 1),
+                        (status_lower.in_(["lost", "verloren", "falsch"]), 1),
                         else_=0
                     )
-                ).label("bet_lost"),
+                ),
+                0
+            ).label("bet_lost"),
 
+            func.coalesce(
                 func.sum(
                     case(
                         (
-                            DBBet.status == "won",
-                            DBBetitem.payout - DBBetitem.bet_money
+                            status_lower.in_(["won", "gewonnen", "richtig"]),
+                            models.DBBetitem.bet_money * (models.DBBetitem.odds - 1)
                         ),
-                        else_=-DBBetitem.bet_money
+                        (
+                            status_lower.in_(["lost", "verloren", "falsch"]),
+                            -models.DBBetitem.bet_money
+                        ),
+                        else_=0
                     )
-                ).label("profit"),
+                ),
+                0
+            ).label("profit"),
 
+            func.coalesce(
                 func.max(
                     case(
                         (
-                            DBBet.status == "won",
-                            DBBetitem.payout - DBBetitem.bet_money
+                            status_lower.in_(["won", "gewonnen", "richtig"]),
+                            models.DBBetitem.bet_money * (models.DBBetitem.odds - 1)
                         ),
-                        else_=None
+                        else_=0
                     )
-                ).label("biggest_win"),
+                ),
+                0
+            ).label("biggest_win"),
 
+            func.coalesce(
                 func.min(
                     case(
                         (
-                            DBBet.status == "lost",
-                            -DBBetitem.bet_money
+                            status_lower.in_(["lost", "verloren", "falsch"]),
+                            -models.DBBetitem.bet_money
                         ),
-                        else_=None
+                        else_=0
                     )
-                ).label("biggest_lost")
-            )
-            .join(DBBet, DBUser.user_id == DBBet.user_id)
-            .join(DBBetitem, DBBetitem.bet_id == DBBetitem.bet_id)
-            .where(DBUser.user_id == user_id)
-            .group_by(DBUser.user_id)
+                ),
+                0
+            ).label("biggest_lost")
+        )
+        .join(models.DBBet, models.DBBet.bet_id == models.DBBetitem.bet_id)
+        .filter(models.DBBet.user_id == user_id)
+        .first()
+    )
+
+    bet_won = result.bet_won or 0
+    bet_lost = result.bet_lost or 0
+    finished_bets = bet_won + bet_lost
+
+    if finished_bets > 0:
+        win_rate = round((bet_won / finished_bets) * 100, 2)
+    else:
+        win_rate = 0
+
+    statistics = get_or_create_statistics(db, user_id)
+
+    statistics.bet_count = bet_count
+    statistics.bet_won = bet_won
+    statistics.bet_lost = bet_lost
+    statistics.win_rate = win_rate
+    statistics.profit = round(float(result.profit or 0), 2)
+    statistics.biggest_win = round(float(result.biggest_win or 0), 2)
+    statistics.biggest_lost = round(float(result.biggest_lost or 0), 2)
+
+    logger.info(
+        "Statistik aggregiert: user_id=%s, bet_count=%s, won=%s, lost=%s, win_rate=%s%%",
+        user_id,
+        bet_count,
+        bet_won,
+        bet_lost,
+        win_rate
+    )
+
+    return statistics
+
+
+@router.post("/results")
+def post_match_result(result: MatchResultCreate, db: Session = Depends(get_db)):
+    """
+    Dummy-Ergebnis für ein Match posten.
+    Danach werden alle Betitems zu diesem Match ausgewertet
+    und die statistics-Tabelle aktualisiert.
+    """
+
+    match = (
+        db.query(models.DBMatch)
+        .filter(models.DBMatch.match_id == result.match_id)
+        .first()
+    )
+
+    if match is None:
+        logger.warning(
+            "Result konnte nicht gespeichert werden: match_id=%s nicht gefunden",
+            result.match_id
+        )
+        raise HTTPException(status_code=404, detail="Match nicht gefunden")
+
+    match.score_home = result.score_home
+    match.score_away = result.score_away
+
+    actual_result = get_match_result(result.score_home, result.score_away)
+
+    bet_items = (
+        db.query(models.DBBetitem)
+        .filter(models.DBBetitem.match_id == result.match_id)
+        .all()
+    )
+
+    affected_user_ids = set()
+    affected_bet_ids = set()
+
+    won_count = 0
+    lost_count = 0
+
+    logger.info(
+        "Match-Result gepostet: match_id=%s, score=%s:%s, result=%s, betitems=%s",
+        result.match_id,
+        result.score_home,
+        result.score_away,
+        actual_result,
+        len(bet_items)
+    )
+
+    for bet_item in bet_items:
+        prediction = normalize_prediction(bet_item.prediction)
+
+        if prediction == actual_result:
+            bet_item.status = "won"
+            won_count += 1
+        else:
+            bet_item.status = "lost"
+            lost_count += 1
+
+        bet = (
+            db.query(models.DBBet)
+            .filter(models.DBBet.bet_id == bet_item.bet_id)
+            .first()
         )
 
-        result = await db.execute(stmt)
-        stats = result.first()
+        if bet:
+            bet.status = "finished"
+            affected_user_ids.add(bet.user_id)
+            affected_bet_ids.add(bet.bet_id)
 
-        if not stats:
-            raise HTTPException(
-                status_code=404,
-                detail="No statistics found"
-            )
-
-        total_bets = stats.total_bets or 0
-        bet_won = stats.bet_won or 0
-
-        win_rate = (
-            round((bet_won / total_bets) * 100, 2)
-            if total_bets > 0
-            else 0
+        logger.info(
+            "Betitem ausgewertet: bet_item_id=%s, bet_id=%s, prediction=%s, result=%s, status=%s",
+            bet_item.bet_item_id,
+            bet_item.bet_id,
+            prediction,
+            actual_result,
+            bet_item.status
         )
 
-        return {
-            "userId": stats.user_id,
-            "winRate": win_rate,
-            "biggestWin": stats.biggest_win or 0,
-            "biggestLost": stats.biggest_lost or 0,
-            "betWon": stats.bet_won or 0,
-            "betLost": stats.bet_lost or 0,
-            "profit": stats.profit or 0
-        }
+    for user_id in affected_user_ids:
+        recalculate_statistics_for_user(db, user_id)
 
-    @router.get("/", response_model=list[StatisticsResponse])
-    def get_all_statistics(self):
-        return self.db.query(models.DBStatistics).all()
+    db.commit()
 
-    @router.get("/{statistics_id}", response_model=StatisticsResponse)
-    def get_statistics(self, statistics_id: int):
-        return self.get_or_404(statistics_id)
+    logger.info(
+        "Result fertig verarbeitet: match_id=%s, won=%s, lost=%s, affected_users=%s",
+        result.match_id,
+        won_count,
+        lost_count,
+        list(affected_user_ids)
+    )
+
+    return {
+        "message": "Result gespeichert und Wetten ausgewertet",
+        "match_id": result.match_id,
+        "score_home": result.score_home,
+        "score_away": result.score_away,
+        "result": actual_result,
+        "won_bets": won_count,
+        "lost_bets": lost_count,
+        "finished_bets": list(affected_bet_ids),
+        "updated_users": list(affected_user_ids)
+    }
 
 
-    @router.post("/", response_model=StatisticsResponse)
-    def create_statistics(self, statistics: StatisticsCreate):
-        db_statistics = models.DBStatistics(
-            user_id=statistics.user_id,
-            win_rate=statistics.win_rate,
-            biggest_win=statistics.biggest_win,
-            biggest_lost=statistics.biggest_lost,
-            bet_lost=statistics.bet_lost,
-            bet_won=statistics.bet_won,
-            profit=statistics.profit
-        )
+@router.post("/users/{user_id}/recalculate")
+def recalculate_user_statistics(user_id: int, db: Session = Depends(get_db)):
+    statistics = recalculate_statistics_for_user(db, user_id)
 
-        self.db.add(db_statistics)
-        self.db.commit()
-        self.db.refresh(db_statistics)
+    db.commit()
+    db.refresh(statistics)
 
-        return db_statistics
+    return {
+        "message": "Statistik neu berechnet",
+        "user_id": statistics.user_id,
+        "bet_count": statistics.bet_count,
+        "bet_won": statistics.bet_won,
+        "bet_lost": statistics.bet_lost,
+        "win_rate": statistics.win_rate,
+        "profit": statistics.profit,
+        "biggest_win": statistics.biggest_win,
+        "biggest_lost": statistics.biggest_lost
+    }
 
-    @router.put("/{statistics_id}", response_model=StatisticsResponse)
-    def update_statistics(self, statistics_id: int, statistics: StatisticsCreate):
-        db_statistics = self.get_or_404(statistics_id)
 
-        db_statistics.user_id = statistics.user_id
-        db_statistics.win_rate = statistics.win_rate
-        db_statistics.biggest_win = statistics.biggest_win
-        db_statistics.biggest_lost = statistics.biggest_lost
-        db_statistics.bet_lost = statistics.bet_lost
-        db_statistics.bet_won = statistics.bet_won
-        db_statistics.profit = statistics.profit
+@router.get("/users/{user_id}")
+def get_user_statistics(user_id: int, db: Session = Depends(get_db)):
+    """
+    Holt die gespeicherte Statistik aus der statistics-Tabelle.
+    Hier wird zusätzlich mit users gejoint, damit der Username mitkommt.
+    """
 
-        self.db.commit()
-        self.db.refresh(db_statistics)
+    result = (
+        db.query(models.DBStatistics, models.DBUser)
+        .join(models.DBUser, models.DBUser.userId == models.DBStatistics.user_id)
+        .filter(models.DBStatistics.user_id == user_id)
+        .first()
+    )
 
-        return db_statistics
+    if result is None:
+        raise HTTPException(status_code=404, detail="Statistik nicht gefunden")
 
-    @router.delete("/{statistics_id}")
-    def delete_statistics(self, statistics_id: int):
-        db_statistics = self.get_or_404(statistics_id)
+    statistics, user = result
 
-        self.db.delete(db_statistics)
-        self.db.commit()
+    logger.info("Statistik geladen: user_id=%s, name=%s", user.userId, user.name)
 
-        return {"message": "Statistik gelöscht"}
+    return {
+        "user_id": user.userId,
+        "name": user.name,
+        "bet_count": statistics.bet_count,
+        "bet_won": statistics.bet_won,
+        "bet_lost": statistics.bet_lost,
+        "win_rate": statistics.win_rate,
+        "profit": statistics.profit,
+        "biggest_win": statistics.biggest_win,
+        "biggest_lost": statistics.biggest_lost
+    }

@@ -15,8 +15,8 @@ API_KEY = "cc9941e4e76441ad860b0b38da3fb426"
 
 
 class MatchCreate(BaseModel):
+    home_team: str
     away_team: str
-    home_away: str
     score_home: int
     score_away: int
     time: str
@@ -232,8 +232,8 @@ class MatchAPI:
     @router.post("/", response_model=MatchResponse)
     def create_match(self, match: MatchCreate):
         db_match = models.DBMatch(
+            home_team=match.home_team,
             away_team=match.away_team,
-            home_away=match.home_away,
             score_home=match.score_home,
             score_away=match.score_away,
             time=match.time,
@@ -245,14 +245,13 @@ class MatchAPI:
         self.db.refresh(db_match)
 
         return db_match
-
     # Aktualisiert die Daten eines vorhandenen Spiels.
     @router.put("/{match_id}", response_model=MatchResponse)
     def update_match(self, match_id: int, match: MatchCreate):
         db_match = self.get_or_404(match_id)
 
+        db_match.home_team = match.home_team
         db_match.away_team = match.away_team
-        db_match.home_away = match.home_away
         db_match.score_home = match.score_home
         db_match.score_away = match.score_away
         db_match.time = match.time

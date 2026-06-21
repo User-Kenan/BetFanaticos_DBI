@@ -1,22 +1,27 @@
 import uvicorn
+import logging
 
-import models
-from database import engine
+import BetFanaticos_DBI.src.models as models
+from BetFanaticos_DBI.src.database import engine
 from fastapi import FastAPI
-from routers import wallet
-from routers import betitem
+from BetFanaticos_DBI.src.routers.wallet import router as wallet
+from BetFanaticos_DBI.src.routers.betitem import router as betitem
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+)
 
-from routers import sidequest
-from routers.admin import router as admin
-from routers.auth import router as auth
-from routers.match import router as match_router
-from routers import bet
+from BetFanaticos_DBI.src.routers.bet import router as bet
+from BetFanaticos_DBI.src.routers.auth import router as auth
+from BetFanaticos_DBI.src.routers.admin import router as admin
+from BetFanaticos_DBI.src.routers.match import router as match_router
+from BetFanaticos_DBI.src.routers.statistics import router as statistics_router
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Tierheim API",
+    title="Betfanaticos API",
     version="1.0.0"
 )
 
@@ -26,9 +31,10 @@ app = FastAPI(
 app.include_router(match_router)
 app.include_router(admin)
 app.include_router(auth)
-app.include_router(wallet.router)
-app.include_router(betitem.router)
-app.include_router(bet.router)
+app.include_router(wallet)
+app.include_router(betitem)
+app.include_router(bet)
+app.include_router(statistics_router)
 
 
 
