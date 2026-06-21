@@ -10,6 +10,7 @@ from BetFanaticos_DBI.src.database import get_db
 
 router = APIRouter(prefix="/match", tags=["Match"])
 
+# API Key von der Fussball API
 API_KEY = "cc9941e4e76441ad860b0b38da3fb426"
 
 
@@ -34,6 +35,15 @@ class MatchAPI:
 
     db: Session = Depends(get_db)
 
+    # status des Matches
+    def convert_status(self, api_status):
+        if api_status == "FINISHED":
+            return "Finished"
+        if api_status in ["LIVE", "IN_PLAY", "PAUSED"]:
+            return "Live"
+        return "Upcoming"
+
+    # KI hier
     def calculate_strength(self, team_data):
         points = team_data.get("points", 0)
         won = team_data.get("won", 0)
@@ -65,6 +75,10 @@ class MatchAPI:
 
         return home_odds, draw_odds, away_odds
 
+    # bis hier => Rechnet die Teamstärke sowie die Quote
+
+
+    # Holt sich die Team Stärke
     def get_team_strengths(self, competition_code, headers):
         strengths = {}
 
@@ -100,14 +114,17 @@ class MatchAPI:
 
         return match
 
+
+    # Ruft zukünftige Fussballspiele ab und berechnet passenden Wettquote
     @router.get("/football-api")
     def get_football_api_matches(self):
         headers = {
             "X-Auth-Token": API_KEY
         }
 
-        competition_code = "WC"
+        competition_code = "WC" # WM spiele werden angeziegt
 
+        # Versucht die Spiele auszurufen
         try:
             response = requests.get(
                 f"https://api.football-data.org/v4/competitions/{competition_code}/matches",
@@ -153,6 +170,7 @@ class MatchAPI:
             )
 
             matches.append({
+                "id": match["id"],
                 "homeTeam": home_team,
                 "awayTeam": away_team,
                 "league": "World Cup",
@@ -162,11 +180,13 @@ class MatchAPI:
                 "awayScore": match["score"]["fullTime"]["away"] or 0,
                 "homeOdds": home_odds,
                 "drawOdds": draw_odds,
-                "awayOdds": away_odds
+                "awayOdds": away_odds,
+                "status": self.convert_status(match["status"])
             })
 
         return matches[:30]
 
+    # Ruft kommende Basketballspiele
     @router.get("/basketball-api")
     def get_basketball_api_matches(self):
         response = requests.get(
@@ -181,6 +201,7 @@ class MatchAPI:
 
         for match in data["events"]:
             matches.append({
+                "id": int(match["idEvent"]),
                 "homeTeam": match["strHomeTeam"],
                 "awayTeam": match["strAwayTeam"],
                 "league": "NBA",
@@ -190,47 +211,24 @@ class MatchAPI:
                 "awayScore": int(match["intAwayScore"] or 0),
                 "homeOdds": 1.9,
                 "drawOdds": 3.2,
-                "awayOdds": 1.9
+                "awayOdds": 1.9,
+                "status": "Upcoming"
             })
 
         return matches[:30]
 
-    @router.get("/baseball-api")
-    def get_baseball_api_matches(self):
-        response = requests.get(
-            "https://www.thesportsdb.com/api/v1/json/123/eventsnextleague.php?id=4424"
-        )
 
-        data = response.json()
-        matches = []
-
-        if data["events"] is None:
-            return matches
-
-        for match in data["events"]:
-            matches.append({
-                "homeTeam": match["strHomeTeam"],
-                "awayTeam": match["strAwayTeam"],
-                "league": "MLB",
-                "sportType": "Baseball",
-                "matchDate": match["dateEvent"] + "T" + (match["strTime"] or "00:00:00"),
-                "homeScore": int(match["intHomeScore"] or 0),
-                "awayScore": int(match["intAwayScore"] or 0),
-                "homeOdds": 1.9,
-                "drawOdds": 3.2,
-                "awayOdds": 1.9
-            })
-
-        return matches[:30]
-
+    # Gibt alle gespeicherten Spiele aus der DB zurück
     @router.get("/", response_model=list[MatchResponse])
     def get_all_matches(self):
         return self.db.query(models.DBMatch).all()
 
+    # Gibt spiele anhand der id zurück
     @router.get("/{match_id}", response_model=MatchResponse)
     def get_match(self, match_id: int):
         return self.get_or_404(match_id)
 
+    # Erstellt neues Spiel und speichert sie in die DB
     @router.post("/", response_model=MatchResponse)
     def create_match(self, match: MatchCreate):
         db_match = models.DBMatch(
@@ -248,6 +246,7 @@ class MatchAPI:
 
         return db_match
 
+    # Aktualisiert die Daten eines vorhandenen Spiels.
     @router.put("/{match_id}", response_model=MatchResponse)
     def update_match(self, match_id: int, match: MatchCreate):
         db_match = self.get_or_404(match_id)
@@ -264,6 +263,7 @@ class MatchAPI:
 
         return db_match
 
+    # Löscht ein Spiel aus der DB
     @router.delete("/{match_id}")
     def delete_match(self, match_id: int):
         db_match = self.get_or_404(match_id)

@@ -15,6 +15,10 @@ class BetitemCreate(BaseModel):
     bet_money: float
     status: str
     bet_type: str
+    prediction: str
+    odds: float
+    home_team: str
+    away_team: str
     bet_id: int
     match_id: int
 
@@ -45,6 +49,18 @@ class BetitemAPI:
     def get_all_betitems(self):
         return self.db.query(models.DBBetitem).all()
 
+
+
+    @router.get("/open/{user_id}", response_model=list[BetitemResponse])
+    def get_open_betitems_by_user(self, user_id: int):
+        return (
+            self.db.query(models.DBBetitem)
+            .join(models.DBBet, models.DBBet.bet_id == models.DBBetitem.bet_id)
+            .filter(models.DBBet.user_id == user_id)
+            .filter(models.DBBetitem.status == "Open")
+            .all()
+        )
+
     @router.get("/{bet_item_id}", response_model=BetitemResponse)
     def get_betitem(self, bet_item_id: int):
         return self.get_or_404(bet_item_id)
@@ -57,6 +73,10 @@ class BetitemAPI:
             bet_money=betitem.bet_money,
             status=betitem.status,
             bet_type=betitem.bet_type,
+            prediction=betitem.prediction,
+            odds=betitem.odds,
+            home_team=betitem.home_team,
+            away_team=betitem.away_team,
             bet_id=betitem.bet_id,
             match_id=betitem.match_id
         )
@@ -76,6 +96,10 @@ class BetitemAPI:
         db_betitem.bet_money = betitem.bet_money
         db_betitem.status = betitem.status
         db_betitem.bet_type = betitem.bet_type
+        db_betitem.prediction = betitem.prediction
+        db_betitem.odds = betitem.odds
+        db_betitem.home_team = betitem.home_team
+        db_betitem.away_team = betitem.away_team
         db_betitem.bet_id = betitem.bet_id
         db_betitem.match_id = betitem.match_id
 
